@@ -1,101 +1,44 @@
-# 🏷️ MCP Price Tracker — Competitor & E-Commerce Pricing Intelligence Server
+# MCP Price Tracker
 
-<p align="center">
-  <strong>A Model Context Protocol (MCP) server for tracking public product pricing, stock availability, and competitor price movements across e-commerce platforms.</strong>
-</p>
+A design brief for an assistant-accessible service that records product prices and explains price changes with source evidence.
 
-<p align="center">
-  <a href="#license"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/Protocol-MCP-green?style=flat-square" alt="Model Context Protocol"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-18%2B-brightgreen?style=flat-square&logo=node.js" alt="Node.js"></a>
-  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.0-3178c6?style=flat-square&logo=typescript" alt="TypeScript"></a>
-</p>
+**Status: concept stage.** This repository currently contains only this README. It does not yet include an MCP server, scraper, database, package manifest, tests or a runnable client configuration.
 
----
+## Intended workflow
 
-## 📌 Overview
+A user supplies a product URL, the service collects a price observation from a supported source, and an assistant can retrieve current observations or compare a product's history. Every observation should include currency, availability, source URL and capture time so that stale or incomparable prices are visible.
 
-**MCP Price Tracker** equips AI assistants (Claude Desktop, Cursor, Antigravity CLI, LibreChat) with real-time e-commerce intelligence tools via the standard **Model Context Protocol (MCP)**.
+## Proposed tools
 
-It allows language models to dynamically inspect product URLs, extract current prices, check inventory availability, compare competing merchant offers, and track historical pricing changes over time without manual browsing.
+These are proposed interfaces, not tools available to call today.
 
----
+| Tool | Intended input | Intended result |
+| --- | --- | --- |
+| Record a product | Supported product URL | Product identifier and collection status |
+| Get current price | Product identifier | Latest price, currency, availability and timestamp |
+| Get price history | Product identifier and date range | Ordered, source-linked observations |
+| Compare products | Product identifiers | Comparable prices with currency and variant caveats |
+| Explain a change | Product identifier and period | Evidence-backed summary of observed movement |
 
-## 🛠️ MCP Tools & Capabilities
+A discount claim should be calculated against an explicit historical reference. Shipping, taxes, membership pricing and variants should be recorded separately rather than silently combined.
 
-The server registers the following MCP tools:
+## Implementation plan
 
-| Tool Name | Parameters | Description |
-| :--- | :--- | :--- |
-| `get_product_price` | `url: string` | Scrapes and extracts the current price, currency, merchant, and title from a product page. |
-| `check_availability` | `url: string` | Determines stock status (`in_stock`, `out_of_stock`, `backorder`, `preorder`). |
-| `compare_prices` | `product_query: string`, `merchants?: string[]` | Searches across multiple merchant catalogs and returns a comparative pricing table. |
-| `get_price_history` | `product_id: string`, `days?: number` | Returns historical price records and statistical low/high/average benchmarks. |
-| `set_price_alert` | `product_url: string`, `target_price: number` | Configures a threshold notification when a product dips below the target price. |
+1. Implement one source adapter with fixtures for missing, changed and malformed prices.
+2. Define a normalized observation schema and persistent storage.
+3. Add an MCP transport and validated tool inputs.
+4. Separate scheduled collection from assistant queries.
+5. Add deduplication, retry limits, stale-data indicators and source-level failure reporting.
+6. Test the protocol with a real MCP client before publishing configuration examples.
 
----
+## Boundaries
 
-## 🏗️ Architecture
+Use permitted sources and respect their access rules. Never infer an unobserved price, present a missing product as zero cost, or treat a currency mismatch as a discount. Historical observations are evidence of captured pages, not a guarantee of checkout availability.
 
-```mermaid
-flowchart LR
-    A[Claude Desktop / Cursor / AI Agent] -->|MCP Stdio / SSE| B[MCP Price Tracker Server]
-    B --> C[Scraping & Extraction Engine]
-    B --> D[Price History Database]
-    C --> E[Public E-Commerce & Retail APIs]
-    D --> F[Comparative Analytics & Alerts]
-```
+## Getting started
 
----
+There is no executable quick start yet. The first working release should include a dependency manifest, documented transport, local startup command, example client configuration and a fixture-based test command.
 
-## 🚀 Quick Start
+## Contributions and license
 
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/MadanMohan0537/mcp-price-tracker.git
-cd mcp-price-tracker
-
-# Install dependencies
-npm install
-
-# Build TypeScript
-npm run build
-```
-
----
-
-## ⚙️ MCP Client Configuration
-
-### Claude Desktop Integration
-
-Add the server to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "price-tracker": {
-      "command": "node",
-      "args": ["C:/Users/madan/github_repos/mcp-price-tracker/dist/index.js"]
-    }
-  }
-}
-```
-
-### Cursor / Antigravity CLI Integration
-
-```json
-{
-  "name": "price-tracker",
-  "command": "node",
-  "args": ["./dist/index.js"],
-  "env": {}
-}
-```
-
----
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
+A useful first contribution is a fixture-backed adapter or the observation schema. No license file is currently included; an explicit license is needed before releasing implementation code.
