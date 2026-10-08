@@ -1,44 +1,87 @@
 # MCP Price Tracker
 
-A design brief for an assistant-accessible service that records product prices and explains price changes with source evidence.
+A runnable, local-first price-evidence product: MCP tools, persistent SQLite history, a browser workspace, an allowlisted JSON-LD collector, currency-aware comparisons, and price threshold checks.
 
-**Status: concept stage.** This repository currently contains only this README. It does not yet include an MCP server, scraper, database, package manifest, tests or a runnable client configuration.
+## Run the product
 
-## Intended workflow
+Python 3.11 or later; no third-party packages or API keys required.
 
-A user supplies a product URL, the service collects a price observation from a supported source, and an assistant can retrieve current observations or compare a product's history. Every observation should include currency, availability, source URL and capture time so that stale or incomparable prices are visible.
+```bash
+python server.py --web --demo
+```
 
-## Proposed tools
+Open **http://127.0.0.1:8765**. Record a source URL, SKU, item price, currency and availability. Inspect history and observed change, compare selected products, save thresholds and check them. The demo observations are synthetic, old and intentionally marked stale.
 
-These are proposed interfaces, not tools available to call today.
+To run the MCP server instead:
 
-| Tool | Intended input | Intended result |
-| --- | --- | --- |
-| Record a product | Supported product URL | Product identifier and collection status |
-| Get current price | Product identifier | Latest price, currency, availability and timestamp |
-| Get price history | Product identifier and date range | Ordered, source-linked observations |
-| Compare products | Product identifiers | Comparable prices with currency and variant caveats |
-| Explain a change | Product identifier and period | Evidence-backed summary of observed movement |
+```bash
+python server.py --db data/prices.sqlite
+```
 
-A discount claim should be calculated against an explicit historical reference. Shipping, taxes, membership pricing and variants should be recorded separately rather than silently combined.
+It reads newline-delimited JSON-RPC from stdin and reserves stdout for MCP responses. Supports the **2025-11-25** protocol via stdio, including initialization, ping, tool discovery and tool calls. No HTTP MCP transport is advertised. The browser companion uses a separate localhost API.
 
-## Implementation plan
+## MCP client configuration
 
-1. Implement one source adapter with fixtures for missing, changed and malformed prices.
-2. Define a normalized observation schema and persistent storage.
-3. Add an MCP transport and validated tool inputs.
-4. Separate scheduled collection from assistant queries.
-5. Add deduplication, retry limits, stale-data indicators and source-level failure reporting.
-6. Test the protocol with a real MCP client before publishing configuration examples.
+Replace both paths with the absolute checkout and database paths on your machine. Use your Python 3.11+ executable if `python` points elsewhere.
 
-## Boundaries
+```json
+{
+  "mcpServers": {
+    "price-tracker": {
+      "command": "python",
+      "args": ["/absolute/path/mcp-price-tracker/server.py", "--db", "/absolute/path/mcp-price-tracker/data/prices.sqlite"]
+    }
+  }
+}
+```
 
-Use permitted sources and respect their access rules. Never infer an unobserved price, present a missing product as zero cost, or treat a currency mismatch as a discount. Historical observations are evidence of captured pages, not a guarantee of checkout availability.
+| Tool | Behavior |
+|---|---|
+| `record_product` | Register URL/SKU and optionally ingest an explicit observation or supplied JSON-LD HTML snapshot |
+| `collect_price` | Fetch an explicitly allowlisted public HTTPS source and extract one unambiguous Product offer |
+| `list_products` | Paginated inventory and latest evidence |
+| `get_current_price` | Latest price, currency, availability, capture time, source and stale status |
+| `get_price_history` | Paginated ordered observations with optional inclusive ISO datetime bounds |
+| `compare_products` | Latest observations grouped by currency; no fabricated exchange conversion |
+| `explain_change` | Absolute and percentage movement against the first capture in the selected window |
+| `set_price_alert` | Save a currency-specific threshold |
+| `check_alerts` | Evaluate thresholds; stale/out-of-stock observations do not trigger |
 
-## Getting started
+Example `record_product` arguments:
 
-There is no executable quick start yet. The first working release should include a dependency manifest, documented transport, local startup command, example client configuration and a fixture-based test command.
+```json
+{"url":"https://example.com/product","title":"Headphones","variant":"black","observation":{"price":"109.00","currency":"USD","availability":"InStock"}}
+```
 
-## Contributions and license
+An omitted capture timestamp means now. Missing prices remain missing, not zero. Price values are decimal strings with valid currency precision. Supported currencies: USD, EUR, GBP, INR, CAD, AUD, JPY, CHF, NZD, SGD. Availability: InStock, OutOfStock, PreOrder, Unknown. Shipping and tax may be recorded as separate notes.
 
-A useful first contribution is a fixture-backed adapter or the observation schema. No license file is currently included; an explicit license is needed before releasing implementation code.
+## Optional live collection
+
+Configure exact source hostnames that you are permitted to fetch:
+
+```bash
+PRICE_ALLOWED_HOSTS=shop.example.com python server.py --db data/prices.sqlite --collect
+```
+
+Only public HTTPS addresses are allowed. TLS uses a pinned validated DNS address; redirects, credentials, alternate ports and oversized/non-HTML responses are rejected. Sources must expose one JSON-LD Product offer; select a SKU when multiple product variants exist. Missing or ambiguous prices return errors, preserving prior evidence. No JavaScript rendering or arbitrary CSS scraping is claimed.
+
+`--collect` performs one sweep and prints collection outcomes and alert matches. An external scheduler can invoke it periodically. It does not install a recurring job or send notifications. Per-source failures appear in the result; network requests have a 10-second timeout and an 800-KB body cap.
+
+## Tests and architecture
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Tests cover decimal precision, invalid prices, atomic recording, idempotency, conflict detection, variants, persistence, date validation, stale and unavailable alerts, currency mismatches, JSON-LD ambiguity, allowlist rejection, and subprocess MCP client initialization/discovery/calls. Web integration tests verify actual HTTP endpoints, request limits and host/origin protection.
+
+- `engine.py`: tool contracts, SQLite transactions, history and comparison rules.
+- `source.py`: constrained source collection.
+- `core.py`: dependency-free MCP transport and localhost UI server.
+- `web/`: browser workspace; no remote analytics or CDNs.
+
+The browser server binds to 127.0.0.1 and rejects foreign Host/Origin headers. It is a local companion, not a public multi-user deployment. Staleness threshold is 24 hours. Prices are captured observations, not a checkout guarantee or an explanation of seller intent. The integration client is included in tests; no claim of certification by every MCP host is made.
+
+Protocol reference: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+
+MIT licensed. Example data is synthetic.
