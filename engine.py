@@ -139,7 +139,10 @@ class PriceTracker:
         if name == "collect_price":
             from source import fetch_page
             product = self.product(a["product_id"])
-            html = fetch_page(product["url"], os.environ.get("PRICE_ALLOWED_HOSTS", "").split(","))
+            try:
+                html = fetch_page(product["url"], os.environ.get("PRICE_ALLOWED_HOSTS", "").split(","))
+            except (OSError, UnicodeError) as exc:
+                raise ValueError(f"Source collection failed ({type(exc).__name__}); prior evidence is preserved") from None
             return self.call("record_product", {"url":product["url"],"variant":product["variant"],"html":html})
         if name == "list_products":
             rows = self.db.execute("SELECT id FROM products ORDER BY id LIMIT ? OFFSET ?", (a.get("limit",100),a.get("offset",0)))

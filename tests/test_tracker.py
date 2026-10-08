@@ -78,6 +78,13 @@ class TrackerTests(unittest.TestCase):
         from source import fetch_page
         for url in ["http://example.com","https://user:pass@example.com","https://127.0.0.1","https://example.com:444"]:
             with self.assertRaises(ValueError):fetch_page(url,["example.com"])
+    def test_unavailable_source_is_actionable(self):
+        from unittest.mock import patch
+        key=self.record()
+        with patch('source.fetch_page',side_effect=TimeoutError()):
+            with self.assertRaisesRegex(ValueError,'prior evidence is preserved'):
+                self.app.call('collect_price',{'product_id':key})
+        self.assertEqual(len(self.app.call('get_price_history',{'product_id':key})['observations']),1)
     def test_protocol_client(self):
         requests=[{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"integration-client","version":"1"}}},
                   {"jsonrpc":"2.0","method":"notifications/initialized"},
